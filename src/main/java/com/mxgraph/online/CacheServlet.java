@@ -17,6 +17,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.cache.Cache;
 import javax.cache.CacheException;
@@ -51,6 +53,12 @@ public class CacheServlet extends HttpServlet
 			"yyyy-MM-dd HH:mm:ss.SSS");
 
 	/**
+	 * 
+	 */
+	private static final Logger log = Logger.getLogger(CacheServlet.class
+			.getName());
+	
+	/**
 	 * Path component under war/ to locate iconfinder_key file.
 	 */
 	protected static final boolean debugOutput = false;
@@ -71,20 +79,19 @@ public class CacheServlet extends HttpServlet
 	protected static Pusher pusher = null;
 
 	/**
-	 * Maps from resource ID and version to next version, patch and secret.
+	 * Global cache is used for patches, last versions and tokens. They are
+	 * separated via their key formats as follows:
+	 * 
+	 * Patches use ID:VERSION and map to a CacheEntry which contains the next
+	 * version, patch data and secret.
+	 * 
+	 * Last versions use ID@VERSION and map to a String which contains the
+	 * known last version of the file. This is used to verify the secret.
+	 * 
+	 * Tokens use ID#SECRET and map to a String which contains the token.
+	 * The token is used to authorize the patch in a subsequent request.
 	 */
 	protected static Cache cache;
-
-	/**
-	 * Maps from resource ID and secret to token. The token is used to write
-	 * the patch in a subsequent request.
-	 */
-	protected static Cache tokens;
-
-	/**
-	 * Maps from resource ID and version to last version for checking patches.
-	 */
-	protected static Cache last;
 
 	static
 	{
@@ -96,14 +103,36 @@ public class CacheServlet extends HttpServlet
 			properties.put(MemcacheService.SetPolicy.ADD_ONLY_IF_NOT_PRESENT,
 					true);
 			properties.put(GCacheFactory.EXPIRATION_DELTA, expirationDelta);
-			last = cacheFactory.createCache(properties);
 			cache = cacheFactory.createCache(properties);
-			tokens = cacheFactory.createCache(properties);
 		}
 		catch (CacheException e)
 		{
 			e.printStackTrace();
 		}
+	}
+
+	/**
+	 * Creates the key for the cache entry.
+	 */
+	protected static String createCacheEntryKey(String id, String version)
+	{
+		return id + ":" + version;
+	}
+
+	/**
+	 * Creates the key for the cache entry.
+	 */
+	protected static String createLastVersionKey(String id, String version)
+	{
+		return id + "@" + version;
+	}
+
+	/**
+	 * Creates the key for the cache entry.
+	 */
+	protected static String createTokenKey(String id, String secret)
+	{
+		return id + "#" + secret;
 	}
 
 	/**
@@ -272,6 +301,11 @@ public class CacheServlet extends HttpServlet
 		catch (Exception e)
 		{
 			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+
+			if (debugOutput)
+			{
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -281,12 +315,12 @@ public class CacheServlet extends HttpServlet
 	protected String createToken(String id, String secret)
 			throws UnauthorizedException
 	{
-		String key = id + ":" + secret;
+		String key = createTokenKey(id, secret);
 
-		if (!tokens.containsKey(key))
+		if (!cache.containsKey(key))
 		{
 			String token = Utils.generateToken(32);
-			tokens.put(key, token);
+			cache.put(key, token);
 
 			debug("createToken key=" + key + " token=" + token);
 
@@ -303,11 +337,11 @@ public class CacheServlet extends HttpServlet
 	 */
 	protected void checkPatch(String id, String current, String secret)
 	{
-		Object lastVersion = last.remove(id + ":" + current);
+		Object lastVersion = cache.remove(createLastVersionKey(id, current));
 
 		if (lastVersion != null)
 		{
-			String key = id + ":" + lastVersion.toString();
+			String key = createCacheEntryKey(id, lastVersion.toString());
 			CacheEntry entry = (CacheEntry) cache.get(key);
 
 			if (entry != null)
@@ -341,12 +375,12 @@ public class CacheServlet extends HttpServlet
 
 		while (!seen.contains(current))
 		{
-			CacheEntry entry = (CacheEntry) cache.get(id + ":" + current);
+			CacheEntry entry = (CacheEntry) cache.get(createCacheEntryKey(id, current));
 
 			if (entry != null)
 			{
 				seen.add(current);
-				current = entry.getEtag();
+				current = entry.getNext();
 				values.add("\"" + entry.getData() + "\"");
 
 				if (current.equals(to))
@@ -359,6 +393,12 @@ public class CacheServlet extends HttpServlet
 					}
 					else
 					{
+						// Logs if the target version is not the latest
+						if (cache.containsKey(createCacheEntryKey(id, current)))
+						{
+							log.log(Level.SEVERE, "Cache request was not for latest id=" + id + " from=" + from + " to=" + to);
+						}
+
 						break;
 					}
 				}
@@ -452,8 +492,9 @@ public class CacheServlet extends HttpServlet
 			String from, String to, String lastSecret)
 			throws UnauthorizedException
 	{
-		if ((secret == null || !tokens.containsKey(id + ":" + secret)
-				|| tokens.remove(id + ":" + secret, token)))
+		String key = createTokenKey(id, secret);
+
+		if ((secret == null || !cache.containsKey(key) || cache.remove(key, token)))
 		{
 			if (from != null && to != null && data != null
 					&& data.length() < maxCacheSize)
@@ -464,12 +505,12 @@ public class CacheServlet extends HttpServlet
 					checkPatch(id, from, lastSecret);
 				}
 				
-				cache.put(id + ":" + from, new CacheEntry(to, data, secret));
+				cache.put(createCacheEntryKey(id, from), new CacheEntry(to, data, secret));
 
 				// Maps from current to last for keeping chain valid
 				if (secret != null)
 				{
-					last.put(id + ":" + to, from);
+					cache.put(createLastVersionKey(id, to), from);
 				}
 
 				debug("addPatch id=" + id + " from=" + from + " to=" + to
@@ -513,9 +554,9 @@ public class CacheServlet extends HttpServlet
 	public static class CacheEntry implements Serializable
 	{
 		/**
-		 * Holds the etag.
+		 * Holds the next version.
 		 */
-		private String etag;
+		private String next;
 
 		/**
 		 * Holds the data.
@@ -528,11 +569,11 @@ public class CacheServlet extends HttpServlet
 		private String secret;
 
 		/**
-		 * Returns the etag.
+		 * Returns the next version.
 		 */
-		public String getEtag()
+		public String getNext()
 		{
-			return etag;
+			return next;
 		}
 
 		/**
@@ -554,9 +595,9 @@ public class CacheServlet extends HttpServlet
 		/**
 		 * Constructs a new cache entry.
 		 */
-		public CacheEntry(String etag, String data, String secret)
+		public CacheEntry(String next, String data, String secret)
 		{
-			this.etag = etag;
+			this.next = next;
 			this.data = data;
 			this.secret = secret;
 		}
