@@ -8,8 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -17,8 +15,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import javax.cache.Cache;
 import javax.cache.CacheException;
@@ -46,18 +42,6 @@ public class CacheServlet extends HttpServlet
 	 */
 	protected static final String PUSHER_CONFIG_FILE_PATH = "pusher.properties";
 
-	/**
-	 * Path component under war/ to locate iconfinder_key file.
-	 */
-	protected static final DateFormat dateFormat = new SimpleDateFormat(
-			"yyyy-MM-dd HH:mm:ss.SSS");
-
-	/**
-	 * 
-	 */
-	private static final Logger log = Logger.getLogger(CacheServlet.class
-			.getName());
-	
 	/**
 	 * Path component under war/ to locate iconfinder_key file.
 	 */
@@ -393,12 +377,6 @@ public class CacheServlet extends HttpServlet
 					}
 					else
 					{
-						// Logs if the target version is not the latest
-						if (cache.containsKey(createCacheEntryKey(id, current)))
-						{
-							log.log(Level.SEVERE, "Cache request was not for latest id=" + id + " from=" + from + " to=" + to);
-						}
-
 						break;
 					}
 				}
@@ -492,9 +470,9 @@ public class CacheServlet extends HttpServlet
 			String from, String to, String lastSecret)
 			throws UnauthorizedException
 	{
-		String key = createTokenKey(id, secret);
+		String key = (secret != null) ? createTokenKey(id, secret) : null;
 
-		if ((secret == null || !cache.containsKey(key) || cache.remove(key, token)))
+		if (key == null || !cache.containsKey(key) || cache.remove(key, token))
 		{
 			if (from != null && to != null && data != null
 					&& data.length() < maxCacheSize)
