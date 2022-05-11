@@ -263,13 +263,18 @@ public class CacheServlet extends HttpServlet
 							catch (UnauthorizedException e)
 							{
 								response.setStatus(
-										HttpServletResponse.SC_UNAUTHORIZED);
+									HttpServletResponse.SC_UNAUTHORIZED);
+							}
+							catch (IncompleteChainException e)
+							{
+								response.setStatus(
+									HttpServletResponse.SC_GONE);
 							}
 						}
 						else
 						{
 							response.setStatus(
-									HttpServletResponse.SC_BAD_REQUEST);
+								HttpServletResponse.SC_BAD_REQUEST);
 						}
 					}
 				}
@@ -330,12 +335,14 @@ public class CacheServlet extends HttpServlet
 
 			if (entry != null)
 			{
-				if (entry.getSecret() != null
-						&& !entry.getSecret().equals(secret))
+				if (entry.getSecret() == null || !entry.getSecret().equals(secret))
 				{
 					cache.remove(key);
 					debug("patch removed id=" + id + " from=" + lastVersion
 							+ " to=" + current);
+					
+					// Marks the chain as incomplete
+					cache.put(key, new CacheEntry(null, null, null));
 				}
 				else
 				{
@@ -344,13 +351,17 @@ public class CacheServlet extends HttpServlet
 				}
 			}
 		}
+		else
+		{
+			debug("check patch no last version for id=" + id + " current=" + current);
+		}
 	}
 
 	/**
 	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)
 	 */
-	protected String getPatches(String id, String from, String to,
-			String secret) throws UnauthorizedException
+	protected String getPatches(String id, String from, String to, String secret)
+		throws UnauthorizedException, IncompleteChainException
 	{
 		List<String> values = new ArrayList<String>();
 		HashSet<String> seen = new HashSet<String>();
@@ -363,21 +374,31 @@ public class CacheServlet extends HttpServlet
 
 			if (entry != null)
 			{
-				seen.add(current);
-				current = entry.getNext();
-				values.add("\"" + entry.getData() + "\"");
-
-				if (current.equals(to))
+				if (entry.getData() == null || entry.getNext() == null
+						|| entry.getSecret() == null)
 				{
-					// Compares secret
-					if (entry.getSecret() != null
-							&& !entry.getSecret().equals(secret))
+					debug("getPatches incomplete chain id=" + id + " from=" + from + " to=" + to);
+
+					throw new IncompleteChainException();
+				}
+				else
+				{
+					seen.add(current);
+					current = entry.getNext();
+					values.add("\"" + entry.getData() + "\"");
+
+					if (current.equals(to))
 					{
-						throw new UnauthorizedException();
-					}
-					else
-					{
-						break;
+						// Compares secret
+						if (entry.getSecret() != null
+								&& !entry.getSecret().equals(secret))
+						{
+							throw new UnauthorizedException();
+						}
+						else
+						{
+							break;
+						}
 					}
 				}
 			}
@@ -470,20 +491,15 @@ public class CacheServlet extends HttpServlet
 			String from, String to, String lastSecret)
 			throws UnauthorizedException
 	{
-		String key = (secret != null) ? createTokenKey(id, secret) : null;
-
-		if (key == null || !cache.containsKey(key) || cache.remove(key, token))
+		if (secret != null && cache.remove(createTokenKey(id, secret), token))
 		{
 			if (from != null && to != null && data != null
 					&& data.length() < maxCacheSize)
 			{
 				// Checks if the last patch has a valid secret
-				if (lastSecret != null)
-				{
-					checkPatch(id, from, lastSecret);
-				}
-				
-				cache.put(createCacheEntryKey(id, from), new CacheEntry(to, data, secret));
+				checkPatch(id, from, lastSecret);
+				cache.put(createCacheEntryKey(id, from),
+					new CacheEntry(to, data, secret));
 
 				// Maps from current to last for keeping chain valid
 				if (secret != null)
@@ -496,7 +512,7 @@ public class CacheServlet extends HttpServlet
 						+ data);
 			}
 		}
-		else
+		else if (data != null)
 		{
 			throw new UnauthorizedException();
 		}
@@ -522,7 +538,7 @@ public class CacheServlet extends HttpServlet
 	{
 		if (debugOutput)
 		{
-			System.out.println(msg);
+			System.out.println("[CacheServlet] " + new Date().toString() + ": " + msg);
 		}
 	}
 
@@ -586,6 +602,13 @@ public class CacheServlet extends HttpServlet
 	 * Cache entry definition.
 	 */
 	public static class UnauthorizedException extends Exception
+	{
+	}
+
+	/**
+	 * Cache entry definition.
+	 */
+	public static class IncompleteChainException extends Exception
 	{
 	}
 
