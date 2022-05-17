@@ -185,10 +185,10 @@ public class CacheServlet extends HttpServlet
 			boolean alive = qs != null && qs.equals("alive");
 
 			String domain = ref.toLowerCase().matches(
-					"https?://([a-z0-9,-]+[.])*draw[.]io/.*") ? ".draw.io/"
+					"^https?://([a-z0-9,-]+[.])*draw[.]io/.*") ? ".draw.io/"
 							: null;
 			domain = (domain == null) ? (ref.toLowerCase()
-					.matches("https?://([a-z0-9,-]+[.])*diagrams[.]net/.*")
+					.matches("^https?://([a-z0-9,-]+[.])*diagrams[.]net/.*")
 							? ".diagrams.net/"
 							: null)
 					: domain;
@@ -430,10 +430,10 @@ public class CacheServlet extends HttpServlet
 			ref = ref == null ? "" : ref;
 
 			String domain = ref.toLowerCase().matches(
-					"https?://([a-z0-9,-]+[.])*draw[.]io/.*") ? ".draw.io/"
+					"^https?://([a-z0-9,-]+[.])*draw[.]io/.*") ? ".draw.io/"
 							: null;
 			domain = (domain == null) ? (ref.toLowerCase()
-					.matches("https?://([a-z0-9,-]+[.])*diagrams[.]net/.*")
+					.matches("^https?://([a-z0-9,-]+[.])*diagrams[.]net/.*")
 							? ".diagrams.net/"
 							: null)
 					: domain;
