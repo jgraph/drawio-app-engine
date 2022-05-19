@@ -107,20 +107,6 @@
   </servlet-mapping>
   <servlet>
     <description/>
-    <display-name>ExportProxyServlet</display-name>
-    <servlet-name>ExportProxyServlet</servlet-name>
-    <servlet-class>com.mxgraph.online.ExportProxyServlet</servlet-class>
-  </servlet>
-  <servlet-mapping>
-    <servlet-name>ExportProxyServlet</servlet-name>
-    <url-pattern>/export</url-pattern>
-  </servlet-mapping>
-  <servlet-mapping>
-    <servlet-name>ExportProxyServlet</servlet-name>
-    <url-pattern>/service/*</url-pattern>
-  </servlet-mapping>
-  <servlet>
-    <description/>
     <display-name>WellKnownServlet</display-name>
     <servlet-name>WellKnownServlet</servlet-name>
     <servlet-class>com.mxgraph.online.WellKnownServlet</servlet-class>
