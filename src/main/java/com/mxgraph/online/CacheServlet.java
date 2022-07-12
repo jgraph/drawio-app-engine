@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -40,7 +41,7 @@ public class CacheServlet extends HttpServlet
 	/**
 	 * Path component under war/ to locate iconfinder_key file.
 	 */
-	protected static final String PUSHER_CONFIG_FILE_PATH = "pusher.properties";
+	protected static final String PUSHER_CONFIG_FILE_PATH = "pusher_properties";
 
 	/**
 	 * Path component under war/ to locate iconfinder_key file.
@@ -136,37 +137,25 @@ public class CacheServlet extends HttpServlet
 
 		if (pusher == null)
 		{
-			InputStream input = null;
-
 			try
 			{
-				input = getServletContext()
-						.getResourceAsStream(getPusherConfigPath());
-
+				String input = SecretFacade.getSecret(PUSHER_CONFIG_FILE_PATH, getServletContext());
 				// load a properties file
 				Properties prop = new Properties();
-				prop.load(input);
+				prop.load(new StringReader(input));
 
 				pusher = new Pusher(prop.getProperty("app_id"),
 						prop.getProperty("key"), prop.getProperty("secret"));
 				pusher.setCluster(prop.getProperty("cluster"));
 				pusher.setEncrypted(true);
 			}
-			finally
+			catch(Exception e)
 			{
-				if (input != null)
-				{
-					input.close();
-				}
+				e.printStackTrace(); //Ignore
 			}
 		}
 
 		return pusher;
-	}
-
-	protected String getPusherConfigPath()
-	{
-		return AbsAuthServlet.SECRETS_DIR_PATH + PUSHER_CONFIG_FILE_PATH;
 	}
 
 	/**
