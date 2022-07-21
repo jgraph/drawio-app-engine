@@ -1,5 +1,8 @@
 package com.mxgraph.online;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import com.google.cloud.secretmanager.v1.AccessSecretVersionResponse;
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient;
 import com.google.cloud.secretmanager.v1.SecretVersionName;
@@ -7,6 +10,9 @@ import javax.servlet.ServletContext;
 
 public class SecretFacade 
 {
+	private static final Logger log = Logger.getLogger(SecretFacade.class
+		.getName());
+
     private static final boolean DEBUG = false;
     private static String PROJECT_ID = DEBUG? "praxis-deck-767" : System.getProperty("com.google.appengine.application.id");
     private SecretFacade() { }
@@ -24,6 +30,7 @@ public class SecretFacade
 		}
 		catch (Exception e)
 		{
+			log.log(Level.SEVERE,"SecretFacade falling back to file secrets");
 			// Fallback to files
             try
 			{
