@@ -24,4 +24,8 @@
   <automatic-scaling>
     <max-idle-instances>1</max-idle-instances>
   </automatic-scaling>
+
+  <env-variables>
+    <env-var name="ENABLE_DRAWIO_PROXY" value="1" />
+  </env-variables>
 </appengine-web-app>
