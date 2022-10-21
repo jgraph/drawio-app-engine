@@ -20,12 +20,13 @@ public class SecretFacade
     public static String getSecret(String key, ServletContext servletContext) 
     {
         String secret = null;
-        try
+		SecretManagerServiceClient client = null;
+        
+		try
 		{
-			SecretManagerServiceClient client = SecretManagerServiceClient.create();
+			client = SecretManagerServiceClient.create();
 			SecretVersionName vName = SecretVersionName.of(PROJECT_ID, key, "latest");
 			AccessSecretVersionResponse ver = client.accessSecretVersion(vName);
-            client.close();
 			secret = ver.getPayload().getData().toString("utf8");
 		}
 		catch (Exception e)
@@ -41,6 +42,13 @@ public class SecretFacade
 			catch (Exception e2)
 			{
 				throw new RuntimeException("Reading secret " + key + " failed.");
+			}
+		}
+		finally
+		{
+			if (client != null)
+			{
+				client.close();
 			}
 		}
 
