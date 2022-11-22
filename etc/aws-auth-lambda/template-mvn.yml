@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Auth Lambda application.
+Resources:
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/AWSLambda_ReadOnlyAccess
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+      Path: /
+      Policies:
+        - PolicyName: SecretsMgr
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - 'arn:aws:secretsmanager:eu-central-1:450520124870:secret:*'
+  AtlasAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.AtlasAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active
+
+  DropboxAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.DropboxAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active
+
+  GitHubAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.GitHubAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active
+
+  GitlabAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.GitlabAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active
+
+  GoogleAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.GoogleAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active
+
+  MSGraphAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: target/auth-lambda-1.0.jar
+      Handler: com.mxgraph.online.MSGraphAuthLambda
+      FunctionUrlConfig:
+        AuthType: NONE
+      Runtime: java8
+      Description: Java function
+      MemorySize: 512
+      Timeout: 30
+      Role: !GetAtt 'FunctionRole.Arn'
+      Environment:
+        Variables:
+          memcachedURL: authstate.obr15c.cfg.euc1.cache.amazonaws.com:11211
+          secretsMgrRegion: eu-central-1
+      Tracing: Active

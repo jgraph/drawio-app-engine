@@ -21,7 +21,7 @@ public class CacheFacade {
 		Map<Object, Object> properties = new HashMap<>();
 		properties.put(MemcacheService.SetPolicy.ADD_ONLY_IF_NOT_PRESENT,
 				true);
-		properties.put(GCacheFactory.EXPIRATION_DELTA, AbsAuthServlet.STATE_COOKIE_AGE); //Cache servlet set it to 300 (5 min), all cache instances are the same so 5 will be enforced
+		properties.put(GCacheFactory.EXPIRATION_DELTA, AbsAuth.STATE_COOKIE_AGE); //Cache servlet set it to 300 (5 min), all cache instances are the same so 5 will be enforced
 
 		return cacheFactory.createCache(properties);
 	}

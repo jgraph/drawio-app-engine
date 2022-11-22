@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2006-2019, JGraph Ltd
+ * Copyright (c) 2006-2022, JGraph Ltd
  */
 package com.mxgraph.online;
 
@@ -22,21 +22,17 @@ import java.util.logging.Logger;
 
 import javax.cache.Cache;
 import javax.cache.CacheException;
-import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import com.google.appengine.api.memcache.MemcacheServiceException;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 @SuppressWarnings("serial")
-abstract public class AbsAuthServlet extends HttpServlet
+abstract public class AbsAuth extends HttpServlet implements AuthComm
 {
-	private static final Logger log = Logger.getLogger(AbsAuthServlet.class.getName());
+	private static final Logger log = Logger.getLogger(AbsAuth.class.getName());
 	private static final boolean DEBUG = false;
 	protected static final String SEPARATOR = "/:::/";
 	public static final int X_WWW_FORM_URLENCODED = 1;
@@ -145,7 +141,7 @@ abstract public class AbsAuthServlet extends HttpServlet
 				tokenCache.put(key, val);
 				done = true;
 			}
-			catch(MemcacheServiceException e)
+			catch(Exception e)
 			{
 				//delay in re-trial is above
 				done = false;
@@ -153,47 +149,16 @@ abstract public class AbsAuthServlet extends HttpServlet
 		}
 		while(!done && trials < 3);
 	}
-	
-	protected String getCookieValue(String name, HttpServletRequest request)
-	{
-		String val = null;
-		
-		Cookie[] cookies = request.getCookies();
-		
-		if (cookies != null)
-		{
-			for (Cookie cookie : cookies)
-			{
-				if (name.equals(cookie.getName()))
-				{
-					val = cookie.getValue();
-					break;
-				}
-			}
-		}
-		
-		return val;
-	}
-	
-	protected void addCookie(String name, String val, int age, HttpServletResponse response)
-	{
-		response.addHeader("Set-Cookie", name + "=" + val + "; Max-Age=" + age + ";path=" + cookiePath + "; Secure; HttpOnly; SameSite=none");
-	}
-	
-	protected void deleteCookie(String name, HttpServletResponse response)
-	{
-		response.addHeader("Set-Cookie", name + "= ;path=" + cookiePath + "; expires=Thu, 01 Jan 1970 00:00:00 UTC; Secure; HttpOnly; SameSite=none");
-	}
-	
+
 	//To support multiple tokens in one cookie
-	protected String getTokenFromCookieVal(String tokenCookieVal, HttpServletRequest request)
+	protected String getTokenFromCookieVal(String tokenCookieVal, Object request)
 	{
 		return tokenCookieVal;
 	}
 	
-	protected void logout(String tokenCookieName, String tokenCookieVal, HttpServletRequest request, HttpServletResponse response)
+	protected void logout(String tokenCookieName, String tokenCookieVal, Object request, Object response)
 	{
-		deleteCookie(tokenCookieName, response);
+		deleteCookie(tokenCookieName, cookiePath, response);
 	}
 	
 	//https://stackoverflow.com/questions/4390800/determine-if-a-string-is-absolute-url-or-relative-url-in-java
@@ -215,38 +180,31 @@ abstract public class AbsAuthServlet extends HttpServlet
 		}
 	}
 
-	/**
-	 * @see HttpServlet#doPost(HttpServletRequest request, HttpServletResponse response)
-	 */
-	protected void doGet(HttpServletRequest request,
-			HttpServletResponse response) throws ServletException, IOException
+	protected void doGetAbst(Object request, Object response) throws IOException
 	{
-		String stateOnly = request.getParameter("getState");
+		String stateOnly = getParameter("getState", request);
 		
 		if ("1".equals(stateOnly))
 		{
 			String state = new BigInteger(256, random).toString(32);
 			String key = new BigInteger(256, random).toString(32);
 			putCacheValue(key, state);
-			response.setStatus(HttpServletResponse.SC_OK);
+			setStatus(HttpServletResponse.SC_OK, response);
 			//Chrome blocks this cookie when draw.io is running in an iframe. The cookie is added to parent frame. TODO FIXME
-			addCookie(STATE_COOKIE, key, STATE_COOKIE_AGE, response); //10 min to finish auth
-			response.setHeader("Content-Type", "text/plain");
-			OutputStream out = response.getOutputStream();
-			out.write(state.getBytes());
-			out.flush();
-			out.close();
+			addCookie(STATE_COOKIE, key, STATE_COOKIE_AGE, cookiePath, response); //10 min to finish auth
+			setHeader("Content-Type", "text/plain", response);
+			setBody(state, response);
 			return;
 		}
 		
-		String code = request.getParameter("code");
-		String error = request.getParameter("error");
+		String code = getParameter("code", request);
+		String error = getParameter("error", request);
 		HashMap<String, String> stateVars = new HashMap<>();
 		String secret = null, client = null, redirectUri = null, domain = null, stateToken = null, cookieToken = null, version = null, successRedirect = null;
 		
 		try
 		{
-			String state = request.getParameter("state");
+			String state = getParameter("state", request);
 			
 			try 
 			{
@@ -281,7 +239,7 @@ abstract public class AbsAuthServlet extends HttpServlet
 					cookieToken = (String) tokenCache.get(cacheKey);
 					//Delete cookie & cache after being used since it is a single use
 					tokenCache.remove(cacheKey);
-					deleteCookie(STATE_COOKIE, response);
+					deleteCookie(STATE_COOKIE, cookiePath, response);
 				}
 			}
 			catch(Exception e)
@@ -291,14 +249,14 @@ abstract public class AbsAuthServlet extends HttpServlet
 			}
 
 			Config CONFIG = getConfig();
-			redirectUri = CONFIG.getRedirectUrl(domain != null? domain : request.getServerName());
+			redirectUri = CONFIG.getRedirectUrl(domain != null? domain : getServerName(request));
 			
 			secret = CONFIG.getClientSecret(client);
 			
 			String tokenCookie = TOKEN_COOKIE + client; //Such that we support multiple client ids
 			
 			//TODO This code should be removed when new code is propagated
-			String refreshToken = request.getParameter("refresh_token"), tokenCookieVal = null;
+			String refreshToken = getParameter("refresh_token", request), tokenCookieVal = null;
 			
 			if (refreshToken == null)
 			{
@@ -307,7 +265,7 @@ abstract public class AbsAuthServlet extends HttpServlet
 			}
 			
 			//Logout (delete refresh token)
-			String logoutParam = request.getParameter("doLogout");
+			String logoutParam = getParameter("doLogout", request);
 			
 			if ("1".equals(logoutParam))
 			{
@@ -315,36 +273,29 @@ abstract public class AbsAuthServlet extends HttpServlet
 			}
 			else if (error != null)
 			{
-				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+				setStatus(HttpServletResponse.SC_UNAUTHORIZED, response);
 				
-				OutputStream out = response.getOutputStream();
-	
-				PrintWriter writer = new PrintWriter(out);
-
 				// Writes JavaScript code
-				writer.println(processAuthError(error));
-	
-				writer.flush();
-				writer.close();
+				setBody(processAuthError(error), response);
 			}
 			else if ((code == null && refreshToken == null) || client == null || redirectUri == null || secret == null)
 			{
-				response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+				setStatus(HttpServletResponse.SC_BAD_REQUEST, response);
 			}
 			//Non GAE runtimes are excluded from state check. TODO Change GAE stub to return null from CacheFactory
 			else if (IS_GAE && (stateToken == null || !stateToken.equals(cookieToken)))
 			{
-				response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+				setStatus(HttpServletResponse.SC_UNAUTHORIZED, response);
 			}
 			else
 			{
 				Response authResp = contactOAuthServer(CONFIG.AUTH_SERVICE_URL, code, refreshToken, secret, client, redirectUri, successRedirect != null, 1);
 				
-				response.setStatus(authResp.status);
+				setStatus(authResp.status, response);
 				
 				if (authResp.refreshToken != null)
 				{
-					addCookie(tokenCookie, getRefreshTokenCookie(authResp.refreshToken, tokenCookieVal, authResp.accessToken), TOKEN_COOKIE_AGE, response);
+					addCookie(tokenCookie, getRefreshTokenCookie(authResp.refreshToken, tokenCookieVal, authResp.accessToken), TOKEN_COOKIE_AGE, cookiePath, response);
 				}
 				
 				if (authResp.content != null)
@@ -352,23 +303,19 @@ abstract public class AbsAuthServlet extends HttpServlet
 					if (successRedirect != null)
 					{
 						//successRedirect is validated above
-						response.sendRedirect(successRedirect + "#" + Utils.encodeURIComponent(authResp.content, "UTF-8"));
+						sendRedirect(successRedirect + "#" + Utils.encodeURIComponent(authResp.content, "UTF-8"), response);
 					}
 					else
 					{
-						OutputStream out = response.getOutputStream();
-						PrintWriter writer = new PrintWriter(out);
-						writer.println(authResp.content);
-						writer.flush();
-						writer.close();
+						setBody(authResp.content, response);
 					}
 				}
 			}
 		}
 		catch (Exception e) 
 		{
-			response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-			log.log(Level.SEVERE, "AUTH-SERVLET: [" + request.getRemoteAddr()+ "] ERROR: " + e.getMessage());
+			setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, response);
+			log.log(Level.SEVERE, "AUTH-SERVLET: [" + getRemoteAddr(request)+ "] ERROR: " + e.getMessage());
 		}
 	}
 
@@ -377,7 +324,7 @@ abstract public class AbsAuthServlet extends HttpServlet
 		return refreshToken;
 	}
 
-	protected  int getExpiresIn(JsonObject json)
+	protected int getExpiresIn(JsonObject json)
 	{
 		try
 		{
