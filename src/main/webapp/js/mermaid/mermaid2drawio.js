@@ -276,6 +276,9 @@ mxMermaidToDrawio = function(graph, diagramtype)
         {
             mxMermaidToDrawio.listeners[i](modelString);
         }
+
+        // Reset listeners
+        mxMermaidToDrawio.listeners = [];
     }
 };
 
