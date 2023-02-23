@@ -1,12 +1,25 @@
-mxMermaidToDrawio = function(graph, diagramtype)
+mxMermaidToDrawio = function(graph, diagramtype, extra)
 {
     if (mxMermaidToDrawio.listeners.length == 0) return;
 
-    console.log('mermaidToDrawio', graph, diagramtype);
+    var grayscaleColors = [
+        ['#000', '#b4b4b4'],
+        ['#fff', '#555'],
+        ['#000', '#bbb'],
+        ['#fff', '#777'],
+        ['#000', '#999'],
+        ['#000', '#ddd'],
+        ['#000', '#fff'],
+        ['#000', '#ddd']
+    ];
+
+    var IsStateDiagram = diagramtype == 'statediagram';
+
+    console.log('mermaidToDrawio', graph, diagramtype, extra);
 
     try
     {
-        return convertDiagram(graph, diagramtype);
+        return convertDiagram(graph);
     }
     catch (e)
     {
@@ -26,7 +39,21 @@ mxMermaidToDrawio = function(graph, diagramtype)
 
     function formatLabel(label, type)
     {
-        return (label? label.replace(/\\n/g, '\n').replace(/<br>/gi, '\n').replace(/~(.+)~/g, '<$1>') : '') + 
+        if (label == null) return '';
+
+        if (Array.isArray(label))
+        {
+            var str = [];
+
+            for (var i = 0; i < label.length; i++)
+            {
+                str.push(formatLabel(label[i]));
+            }
+
+            return str.join('\n');
+        }
+
+        return (label? label.replace(/\\n/g, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/~(.+)~/g, '<$1>') : '') + 
             (type ? '<' + type + '>' : '');
     }
 
@@ -42,10 +69,14 @@ mxMermaidToDrawio = function(graph, diagramtype)
     }
 
     // TODO Add styles if needed
-    function addNode(node, parent, mxGraph)
+    function addNode(node, parent, mxGraph, noPosFix)
     {
         var v;
-        fixNodePos(node);
+        
+        if (!noPosFix)
+        {
+            fixNodePos(node);
+        }
         
         if (node.clusterNode)
         {
@@ -92,11 +123,13 @@ mxMermaidToDrawio = function(graph, diagramtype)
                 v = simpleShape('align=left;spacingLeft=4;', node, parent, mxGraph);
             break;
             case 'rect':
-                v = simpleShape((node.type == 'round' ? 'rounded=1;absoluteArcSize=1;arcSize=14;' : '') + 
+                v = simpleShape((node.type == 'round' || IsStateDiagram ? 'rounded=1;absoluteArcSize=1;arcSize=14;' : '') + 
                         'whiteSpace=wrap;strokeWidth=2;' + 
                         (node.type == 'group'? 'verticalAlign=top;' : ''), node, parent, mxGraph);
             break;
             case 'question':
+            case 'choice':
+                if (node.shape == 'choice') node.labelText = '';
                 v = simpleShape('rhombus;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
             break;
             case 'stadium':
@@ -132,7 +165,179 @@ mxMermaidToDrawio = function(graph, diagramtype)
             case 'hexagon':
                 v = simpleShape('shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
             break;
-            
+            case 'start':
+                node.labelText = '';
+                v = simpleShape('ellipse;fillColor=strokeColor;', node, parent, mxGraph);
+            break;
+            case 'end':
+                node.labelText = '';
+                v = simpleShape('ellipse;shape=endState;fillColor=strokeColor;', node, parent, mxGraph);
+            break;
+            case 'roundedWithTitle':
+                v = simpleShape('swimlane;fontStyle=1;align=center;verticalAlign=middle;startSize=25;container=0;collapsible=0;rounded=1;arcSize=14;dropTarget=0;', node, parent, mxGraph);
+            break;
+            case 'fork':
+            case 'join':
+                node.labelText = '';
+                v = simpleShape('shape=line;strokeWidth=' + (node.height - 5) + ';', node, parent, mxGraph);
+            break;
+            case 'divider':
+                node.labelText = '';
+                v = simpleShape('fillColor=#F7F7F7;dashed=1;dashPattern=12 12;', node, parent, mxGraph);
+            break;
+            case 'lifeline':
+            case 'actorLifeline':
+                node.labelText = node.description;
+                v = simpleShape('shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;' +
+                    'outlineConnect=0;portConstraint=eastwest;newEdgeStyle={"edgeStyle":"elbowEdgeStyle","elbow":"vertical","curved":0,"rounded":0};' +
+                    (node.type == 'actor' ? 'participant=umlActor;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=top;align=center;' : '') + 
+                    'size=' + node.size + ';', node, parent, mxGraph);
+            break;
+            case 'activation':
+                v = simpleShape('points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={"edgeStyle":"elbowEdgeStyle","elbow":"vertical","curved":0,"rounded":0}', node, parent, mxGraph);
+            break;
+            case 'seqNote':
+                node.labelText = node.message;
+                v = simpleShape('fillColor=#ffff88;strokeColor=#9E916F;', node, parent, mxGraph);
+            break;
+            case 'loop':
+                node.labelText = node.type || '';
+                var typeWidth = node.type? node.type.length * 10 : 0;
+                v = simpleShape('shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=' + typeWidth, node, parent, mxGraph);
+                
+                mxGraph.insertVertex(v, null, formatLabel(node.title), typeWidth, 0, node.width - typeWidth, 20, 'text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;');
+                
+                for (var i = 0; node.sections != null && i < node.sections.length; i++)
+                {
+                    var section = node.sections[i];
+                    var sectionTitle = node.sectionTitles[i];
+                    mxGraph.insertVertex(v, null, formatLabel(sectionTitle.message), 0, section.y - node.y, node.width, section.height, 'shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;');
+                }
+            break;
+            case 'erdEntity':
+                var attributes = node.entityData.attributes;
+                var rowCount = attributes.length;
+                var rowHeight = (node.height - 25) / rowCount; // 25 is header height                
+                var y = rowHeight;
+                var typeColW = 0, nameColW = 0, keyColW = 0, commentColW = 0;
+
+                for (var i = 0; i < attributes.length; i++)
+                {
+                    typeColW = Math.max(typeColW, attributes[i].attributeType.length * 6);
+                    nameColW = Math.max(nameColW, attributes[i].attributeName.length * 6);
+                    keyColW = Math.max(keyColW, attributes[i].attributeKeyType? attributes[i].attributeKeyType.length * 10 : 0);
+                    commentColW = Math.max(commentColW, attributes[i].attributeComment? attributes[i].attributeComment.length * 6 : 0);
+                }
+
+                v = mxGraph.insertVertex(parent, null, formatLabel(node.labelText), node.x, node.y, Math.max(nameColW + typeColW + keyColW + commentColW, node.width), node.height, 'shape=table;startSize=' + (attributes.length == 0? node.height : 25) + 
+                                ';container=1;collapsible=0;childLayout=tableLayout;fixedRows=1;rowLines=1;fontStyle=1;align=center;resizeLast=1;');
+
+                for (var i = 0; i < attributes.length; i++)
+                {
+                    var row = mxGraph.insertVertex(v, null, null, 0, y, node.width, rowHeight, 'shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;dropTarget=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;top=0;left=0;right=0;bottom=0;');
+                    var cellStyle = 'shape=partialRectangle;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;align=left;spacingLeft=2;overflow=hidden;fontSize=11;';
+                    mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeType), 0, 0, typeColW, rowHeight, cellStyle);
+                    mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeName), 0, 0, Math.max(nameColW, node.width - typeColW - keyColW - commentColW), rowHeight, cellStyle);
+                    
+                    if (keyColW > 0)
+                    {
+                        mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeKeyType), 0, 0, keyColW, rowHeight, cellStyle);
+                    }
+
+                    if (commentColW > 0)
+                    {
+                        mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeComment), 0, 0, commentColW, rowHeight, cellStyle);
+                    }
+
+                    y += rowHeight;
+                }
+            break;
+            case 'element':
+            case 'requirement':
+                var isElement = node.shape == 'element';
+                annotationsStr = '<<' + (isElement? 'Element' : node.data.type) + '>>\n';
+                v = mxGraph.insertVertex(parent, null, annotationsStr + formatLabel(node.data.name), node.x, node.y, node.width, node.height, 'swimlane;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=1;collapsible=0;marginBottom=0;');
+
+                var bodyTxt = '';
+
+                if (isElement)
+                {
+                    bodyTxt = 'Type: ' + node.data.type + '\n' + 'Doc Ref: ' + (node.data.docRef || 'None');
+                }
+                else
+                {
+                    bodyTxt = 'Id: ' + node.data.id + '\n' + 'Text: ' + node.data.text + '\n' + 'Risk: ' + node.data.risk + '\n' + 'Verification: ' + node.data.verifyMethod;
+                }
+
+                mxGraph.insertVertex(v, null, formatLabel(bodyTxt), 0, 40, node.width, node.height - 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacing=6;overflow=hidden;rotatable=0;connectable=0;');
+            break;
+            case 'rectCloud':
+                v = simpleShape('shape=mxgraph.basic.cloud_rect;strokeWidth=2;', node, parent, mxGraph);
+            break;
+            case 'cloud':
+                v = simpleShape('ellipse;shape=cloud;strokeWidth=2;', node, parent, mxGraph);
+            break;
+            case 'roundedRect':
+                v = simpleShape('rounded=1;arcSize=40;strokeWidth=2', node, parent, mxGraph);
+            break;
+            case 'smilingFace':
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699734-icon-6-smiling-face-128.png;imageBackground=default;', node, parent, mxGraph);
+            break;
+            case 'sadFace':
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699741-icon-7-sad-face-128.png;imageBackground=default;', node, parent, mxGraph);
+            break;
+            case 'neutralFace':
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699721-icon-5-neutral-face-128.png;imageBackground=default;', node, parent, mxGraph);
+            break;
+            case 'gitBranch':
+                v = simpleShape('line;dashed=1;strokeWidth=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;spacingRight=35;spacingTop=0;spacing=0;backgroundOutline=0;html=1;' +
+                        (node.isHidden? 'strokeColor=none;' : 'labelBackgroundColor=' + node.color[1] + ';fontColor=' + node.color[0] + ';'), node, parent, mxGraph);
+            break;
+            case 'gitCommit':
+                var typeStyle = '';
+                
+                switch (node.type)
+                {
+                    case 0:
+                    case 1:
+                        typeStyle = 'strokeColor=' + node.color[1] + ';fillColor=' + node.color[1];
+                    break;
+                    case 2:
+                        typeStyle = 'strokeColor=none;fillColor=none';
+                    break;
+                    case 3:
+                        node.labelText = '';
+                        typeStyle = 'strokeColor=' + node.color[1] + ';fillColor=#efefef';
+                    break;
+                    case 4:
+                        node.labelText = '';
+                        typeStyle = 'strokeColor=#efefef;fillColor=#efefef';
+                    break;
+                }
+
+                v = simpleShape('ellipse;verticalAlign=middle;labelPosition=left;verticalLabelPosition=middle;align=right;rotation=300;spacingRight=4;labelBackgroundColor=default;strokeWidth=5;' +
+                        typeStyle + ';', node, parent, mxGraph);
+                        
+                switch (node.type)
+                {
+                    case 1:
+                        mxGraph.insertVertex(v, null, '', 5, 5, node.width - 10, node.height - 10, 'shape=umlDestroy;strokeWidth=3;strokeColor=#efefef;');
+                    break;
+                    case 2:
+                        mxGraph.insertVertex(v, null, '', 0, 0, node.width, node.height, 'strokeWidth=5;strokeColor=#1c1c1c;fillColor=#efefef;');
+                    break;
+                    case 4:
+                        mxGraph.insertVertex(v, null, '', 2, 2, node.width - 5, node.height - 5, 'shape=image;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/essential-pack/32/68-Cherry-128.png');
+                    break;
+                }
+
+                if (node.tag)
+                {
+                    var tagW = node.tag.length * 6 + 20;
+                    // Note that the tag is rotated 90 degrees and flipped vertically (so width and height are swapped)
+                    var t = mxGraph.insertVertex(v, null, formatLabel(node.tag), 0, -tagW / 2 - node.width / 2 - 5, node.height, tagW, 'shape=loopLimit;size=8;rotation=90;horizontal=0;flipV=1;fillColor=#efefef;strokeColor=#DEDEDE;');
+                }
+            break;
         }
 
         //Links
@@ -170,17 +375,48 @@ mxMermaidToDrawio = function(graph, diagramtype)
                 return prefex + 'Arrow=block';
             case 'arrow_open':
             case 'none':
+            case undefined:
                 return prefex + 'Arrow=none';
             case 'arrow_circle':
                 return prefex + 'Arrow=oval;' + prefex + 'Size=10;' + prefex + 'Fill=1';
             case 'arrow_cross':
                 return prefex + 'Arrow=cross';
+            case 'ZERO_OR_MORE':
+                return prefex + 'Arrow=ERmany;' + prefex + 'Size=10;';
+            case 'ONLY_ONE':
+                return prefex + 'Arrow=ERmandOne;' + prefex + 'Size=10;';
+            case 'ONE_OR_MORE':
+                return prefex + 'Arrow=ERoneToMany;' + prefex + 'Size=10;';
+            case 'ZERO_OR_ONE':
+                return prefex + 'Arrow=ERzeroToOne;' + prefex + 'Size=10;';
+            case 'circlePlus':
+                return prefex + 'Arrow=circlePlus;' + prefex + 'Size=10;' + prefex + 'Fill=0';
         }
     };
 
     function getEdgeStyle(edgeInfo)
     {
         var style = ['curved=1'];
+
+        if (edgeInfo.relationship)
+        {
+            var type = edgeInfo.relationship.type;
+
+            if (edgeInfo.relationship.relSpec)
+            {
+                var relSpec = edgeInfo.relationship.relSpec;
+                edgeInfo.arrowTypeStart = relSpec.cardB;
+                edgeInfo.arrowTypeEnd = relSpec.cardA;
+                edgeInfo.pattern = relSpec.relType == 'NON_IDENTIFYING'? 'dashed' : 'solid';
+            }
+            else if (type)
+            {
+                var isContains = type == 'contains';
+                edgeInfo.pattern = isContains ? 'solid' : 'bigDashed';
+                edgeInfo.arrowTypeStart = isContains ? 'circlePlus' : 'none';
+                edgeInfo.arrowTypeEnd = isContains ? 'none' : 'dependency';
+            }
+        }
 
         switch (edgeInfo.pattern)
         {
@@ -190,8 +426,16 @@ mxMermaidToDrawio = function(graph, diagramtype)
             case 'dashed':
                 style.push('dashed=1');
             break;
+            case 'bigDashed':
+                style.push('dashed=1;dashPattern=8 8');
+            break;
         }
         
+        if (edgeInfo.classes && edgeInfo.classes.indexOf('note-edge') != -1)
+        {
+            style.push('dashed=1');
+        }
+
         style.push(getEdgeHead(edgeInfo.arrowTypeStart, 'start'));
         style.push(getEdgeHead(edgeInfo.arrowTypeEnd, 'end'));
 
@@ -207,7 +451,15 @@ mxMermaidToDrawio = function(graph, diagramtype)
     {
         var source = nodesMap[edgeInfo.fromCluster || edge.v];
         var target = nodesMap[edgeInfo.toCluster || edge.w];
-        var e = mxGraph.insertEdge(parent, null, formatLabel(edgeInfo.label), source, target, getEdgeStyle(edgeInfo));
+        var lbl = edgeInfo.label;
+        
+        if (edgeInfo.relationship)
+        {
+            lbl = edgeInfo.relationship.type? '<<' + edgeInfo.relationship.type + '>>' :
+                edgeInfo.relationship.roleA;
+        }
+
+        var e = mxGraph.insertEdge(parent, null, formatLabel(lbl), source, target, getEdgeStyle(edgeInfo));
 
         if (edgeInfo.startLabelRight)
         {
@@ -237,6 +489,189 @@ mxMermaidToDrawio = function(graph, diagramtype)
         return e;
     };
 
+    function findTerminal(msg, nodesMap, coord)
+    {
+        var t = nodesMap[msg[coord]];
+        
+        if (t == null)
+        {
+            // Find which activation is the target
+            var arr = nodesMap[msg[coord] + 'a'];
+
+            for (var i = 0; arr != null && i < arr.length; i++)
+            {
+                var geo = arr[i].geometry;
+
+                if (geo.y <= msg.stopy && geo.y + geo.height >= msg.stopy)
+                {
+                    return arr[i];
+                }
+            }
+        }
+
+        return t;
+    };
+
+    function addMessage(msg, nodesMap, mxGraph)
+    {
+        var edgeStyle = '';
+
+        switch (msg.type)
+        {
+            case 0:
+                // Nothing
+            break;
+            case 1:
+                edgeStyle = 'dashed=1;dashPattern=2 3;';
+            break;
+            case 3:
+                edgeStyle = 'endArrow=cross;';
+            break;
+            case 4:
+                edgeStyle = 'endArrow=cross;dashed=1;dashPattern=2 3;';
+            break;
+            case 5:
+                edgeStyle = 'endArrow=none;';
+            break;
+            case 6:
+                edgeStyle = 'endArrow=none;dashed=1;dashPattern=2 3;';
+            break;
+            case 24:
+                edgeStyle = 'endArrow=classic;endSize=10;';
+            break;
+            case 25:
+                edgeStyle = 'endArrow=classic;dashed=1;dashPattern=2 3;endSize=10;';
+            break;
+        }
+
+        var source = findTerminal(msg, nodesMap, 'startx');
+        var target = findTerminal(msg, nodesMap, 'stopx');
+        var selfLoop = source == target;
+        var e = mxGraph.insertEdge(null, null, formatLabel(msg.message), source, target, 
+                (selfLoop? 'curved=1;' : 'verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;') +
+                edgeStyle);
+
+        if (selfLoop)
+        {
+            e.geometry.points = [new mxPoint(msg.startx + 50, msg.stopy - 30),
+                                new mxPoint(msg.startx + 50, msg.stopy)];
+        }
+        else
+        {
+            e.geometry.points = [new mxPoint(Math.min(msg.startx, msg.stopx) + msg.width / 2, msg.stopy)];
+        }
+
+        return e;
+    };
+    
+    function convertSequenceDiagram(graph, mxGraph)
+    {
+        var nodesMap = {}, actorWidth = 0;
+
+        for (var i = 0; i < graph.actors.length; i++)
+        {
+            var actor = graph.actors[i];
+            
+            if (nodesMap[actor.name]) continue;
+
+            actor.shape = actor.type == 'actor' ? 'actorLifeline' : 'lifeline' ;
+            actor.size = actor.height;
+            actor.height = graph.verticalPos;
+            actor.y = 0; // TODO Confirm this is correct as y sometimes is huge for no reason
+            var v = addNode(actor, null, mxGraph, true);
+            nodesMap[actor.x + actor.width / 2] = v;
+            actorWidth = Math.max(actorWidth, actor.width);
+            nodesMap[actor.name] = v;
+        }
+
+        var msgYs = [];
+        for (var i = 0; i < graph.messages.length; i++)
+        {
+            msgYs.push(graph.messages[i].stopy);
+        }
+
+        msgYs.sort(function(a, b) { return a - b; });
+        graph.activations.sort(function(a, b) { return a.starty - b.starty; })
+        var j = 0;
+
+        for (var i = 0; i < graph.activations.length; i++)
+        {
+            var activation = graph.activations[i];
+            var actor = nodesMap[activation.actor];
+            var actorGeo = actor.geometry;
+            
+            // Correct the y position of the activation
+            while (j < msgYs.length && msgYs[j] < activation.starty)
+            {
+                j++;
+            }
+
+            activation.x = activation.startx - actorGeo.x;
+            activation.y = msgYs[j - 1]; // actorGeo.y is zero
+            activation.width = activation.stopx - activation.startx;
+            activation.height = activation.stopy - msgYs[j - 1];
+            activation.shape = 'activation';
+            var v = addNode(activation, actor, mxGraph, true);
+
+            function addToNodesMap(key, v)
+            {
+                if (nodesMap[key] == null)
+                {
+                    nodesMap[key] = [];
+                }
+
+                nodesMap[key].push(v);
+            }
+
+            addToNodesMap(activation.startx + 'a', v);
+            addToNodesMap(activation.stopx + 'a', v);
+        }
+
+        for (var i = 0; i < graph.loops.length; i++)
+        {
+            var loop = graph.loops[i];
+            
+            loop.x = loop.startx;
+            loop.y = loop.starty;
+            loop.width = loop.stopx - loop.startx;
+            loop.height = loop.stopy - loop.starty;
+            loop.shape = 'loop';
+            addNode(loop, null, mxGraph, true);
+        }
+
+        for (var i = 0; i < graph.messages.length; i++)
+        {
+            addMessage(graph.messages[i], nodesMap, mxGraph);
+        }
+
+        for (var i = 0; i < graph.notes.length; i++)
+        {
+            var note = graph.notes[i];
+            note.shape = 'seqNote';
+            note.x = note.startx;
+            note.y = note.starty;
+            addNode(note, null, mxGraph, true);
+        }
+
+        for (var i = 0; i < graph.actors.length; i++)
+        {
+            var actor = graph.actors[i];
+            
+            if (actor.type == 'actor' && !actor.secondPass)
+            {
+                var v = nodesMap[actor.name];
+
+                for (var j = 0; v.children && j < v.children.length; j++)
+                {
+                    v.children[j].geometry.x -= (v.geometry.width - 35) / 2;
+                }
+
+                v.geometry.width = 35;
+                actor.secondPass = true;
+            }
+        }
+    };
+
     function convertGraph(graph, parent, mxGraph)
     {
         var nodes = graph._nodes, nodesMap = {};
@@ -261,11 +696,268 @@ mxMermaidToDrawio = function(graph, diagramtype)
         }
     };
 
-    function convertDiagram(graph, type)
+    function convertGitGraphDiagram(graph, mxGraph)
+    {
+        var branchMap = {}, maxX = 0, colorIndex = 0;
+
+        for (var commit in graph.commitPos)
+        {
+            maxX = Math.max(maxX, graph.commitPos[commit].x);
+        }
+
+        for (var name in graph.branchPos)
+        {
+            var branch = graph.branchPos[name];
+            branch.shape = 'gitBranch';
+            branch.labelText = name;
+            branch.y = branch.pos;
+            branch.x = 0;
+            branch.width = maxX + 50;
+            branch.height = 1;
+            branch.isHidden = !graph.gitGraphConfig.showBranches;
+            var color = grayscaleColors[colorIndex++ % grayscaleColors.length];
+            branch.color = color;
+            var n = addNode(branch, null, mxGraph, true);
+            n.value = graph.gitGraphConfig.showBranches? '<p style="line-height: 50%;">&nbsp;&nbsp;' + mxUtils.htmlEntities(n.value) + '&nbsp;&nbsp;</p>' : '';
+            branchMap[branch.pos] = { node: n, color: color };
+        }
+
+        var commitMap = {}, edges = [];
+
+        for (var name in graph.commitPos)
+        {
+            var commit = graph.commitPos[name];
+            Object.assign(commit, graph.commits[name]);
+            var branch = branchMap[commit.y];
+            commit.shape = 'gitCommit';
+            commit.pos = commit.y;
+            commit.y = 0;
+            commit.width = 20;
+            commit.height = 20;
+            commit.labelText = graph.gitGraphConfig.showCommitLabel? name : '';
+            commit.color = branch.color;
+            commit.type = commit.customType || commit.type;
+            commitMap[name] = addNode(commit, branch.node, mxGraph);
+            branch.commitList = branch.commitList || [];
+            branch.commitList.push(commit.x);
+
+            for (var i = 0; i < commit.parents.length; i++)
+            {
+                var parent = commit.parents[i]; 
+                var parentCommit = graph.commitPos[parent];
+                parentPos = parentCommit.pos != null ? parentCommit.pos : parentCommit.y;
+                edges.push({ source: parent, target: name, color: commit.pos >= parentPos ? branch.color : branchMap[parentPos].color, clr2: branch.color});
+            }
+        }
+
+        for (var i = 0; i < edges.length; i++)
+        {
+            var edge = edges[i];
+            var src = commitMap[edge.source], trg = commitMap[edge.target];
+            var e = mxGraph.insertEdge(null, null, null, src, trg, 'rounded=1;endArrow=none;endFill=0;strokeWidth=8;');
+
+            var srcY =  src.parent.geometry.y, trgY = trg.parent.geometry.y;
+            var overlapClr = false;
+
+            if (srcY != trgY)
+            {
+                var tgrBranch = branchMap[trgY], count = 0;
+
+                for (var j = 0; j < tgrBranch.commitList.length; j++)
+                {
+                    var commitX = tgrBranch.commitList[j];
+
+                    if (commitX > src.geometry.x && commitX < trg.geometry.x)
+                    {
+                        count++;
+                    }
+                }
+
+                if (count > 0)
+                {
+                    var midY = (srcY + trgY) / 2;
+                    e.geometry.points = [new mxPoint(src.geometry.x + src.geometry.width / 2, midY), new mxPoint(trg.geometry.x + trg.geometry.width / 2, midY)];
+                    overlapClr = true;
+                }
+                else
+                {
+                    var maxY = Math.max(srcY, trgY);
+                    e.geometry.points = [new mxPoint(srcY == maxY? trg.geometry.x + trg.geometry.width / 2 : src.geometry.x + src.geometry.width / 2, maxY)];
+                }
+            }
+
+            if (overlapClr)
+            {
+                e.style += 'strokeColor=' + edge.clr2[1] + ';';
+            }
+            else
+            {
+                e.style += 'strokeColor=' + edge.color[1] + ';';
+            }
+        }
+    };
+
+    function convertJourneyDiagram(graph, mxGraph)
+    {
+        var tasks = graph.tasks, lastSection = null;
+        var minX = Number.MAX_SAFE_INTEGER, maxX = 0, minY = Number.MAX_SAFE_INTEGER;
+
+        for (var i = 0; i < tasks.length; i++)
+        {
+            var task = tasks[i];
+            task.shape = 'lifeline';
+            task.description = task.task;
+            task.size = task.height * 3;
+            task.width *= 3;
+            task.height = 300;
+            minX = Math.min(minX, task.x);
+            maxX = Math.max(maxX, task.x + task.width);
+            minY = Math.min(minY, task.y + task.size);
+            var v = addNode(task, null, mxGraph, true);
+            var face = {shape: task.score < 3? 'sadFace' : (task.score > 3? 'smilingFace' : 'neutralFace'), x: task.width / 2 - 15, y: 270 - task.score * 25, width: 30, height: 30};
+            addNode(face, v, mxGraph, true);
+
+            var index = 0;
+            // actors
+            for (var key in task.actors)
+            {
+                mxGraph.insertVertex(v, null, null, 5 + index++ * 8, -6, 12, 12, 'ellipse;aspect=fixed;fillColor=' + task.actors[key].color);
+            }
+
+            if (lastSection != task.section)
+            {
+                lastSection = task.section;
+                task.labelText = task.section;
+                task.shape = 'rect';
+                task.height = task.size;
+                task.y -= task.height + 10;
+                v = addNode(task, null, mxGraph, true);
+            }
+        }
+
+        var e = mxGraph.insertEdge(null, null, null, null, null, 'endArrow=block;strokeWidth=3;endFill=1;');
+        e.geometry.setTerminalPoint(new mxPoint(minX, minY + 50), true);
+        e.geometry.setTerminalPoint(new mxPoint(maxX + 50, minY + 50), false);
+        e.geometry.relative = true;
+
+        if (graph.title)
+        {
+            mxGraph.insertVertex(null, null, formatLabel(graph.title), minX, 0, graph.title.length * 12, 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=20;fontStyle=1');
+        }
+
+        // Legend
+        for (var key in graph.actors)
+        {
+            var actor = graph.actors[key];
+            mxGraph.insertVertex(null, null, key, 10, 70 + actor.position * 20, 12, 12, 'ellipse;aspect=fixed;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;spacingLeft=10;fillColor=' + actor.color);
+        }
+    };
+
+    function convertMindmapDiagram(graph, mxGraph)
+    {
+        var nodes = graph._private.elements;
+        var nodesMap = {}, edgesMap = {};
+
+        for (var i = 0; i < nodes.length; i++)
+        {
+            var node = nodes[i]._private.data;
+
+            switch (node.type)
+            {
+                case 1:
+                    node.shape = 'roundedRect';
+                break;
+                case 2:
+                    node.shape = 'rect';
+                break;
+                case 3:
+                    node.shape = 'circle';
+                    node.width = Math.max(node.height, node.width);
+                    node.height = node.width;
+                break;
+                case 4:
+                    node.shape = 'cloud';
+                break;
+                case 5:
+                    node.shape = 'rectCloud';
+                break;
+                case 6:
+                    node.shape = 'hexagon';
+                break;
+                default:
+                    node.shape = 'rect';
+                    node.type = 'round';
+            }
+            
+            nodesMap[node.id] = addNode(node, null, mxGraph);
+
+            var edges = nodes[i]._private.edges;
+
+            for (var j = 0; j < edges.length; j++)
+            {
+                var edge = edges[j]._private.data;
+                edgesMap[edge.id] = edge;
+            }
+        }
+
+        for (var id in edgesMap)
+        {
+            var edgeInfo = edgesMap[id];
+            mxGraph.insertEdge(null, null, null, nodesMap[edgeInfo.source], nodesMap[edgeInfo.target], 'endArrow=none');
+        }
+    };
+
+    function convertDiagram(graph)
     {
         var mxGraph = createMxGraph();
 
-        convertGraph(graph, null, mxGraph);
+        if (diagramtype == 'gitgraph')
+        {
+            convertGitGraphDiagram(graph, mxGraph);
+        }
+        else if (diagramtype == 'journey')
+        {
+            convertJourneyDiagram(graph, mxGraph);
+        }
+        else if (diagramtype == 'Mindmap')
+        {
+            convertMindmapDiagram(graph, mxGraph);
+        }
+        else if (diagramtype == 'sequenceDiagram')
+        {
+            convertSequenceDiagram(graph, mxGraph);
+        }
+        else
+        {
+            if (diagramtype == 'ERD')
+            {
+                for (var key in extra)
+                {
+                    extra[key].title = key;
+                    extra[key.replace(/-|_/g, '')] = extra[key];
+                }
+
+                for (var key in graph._nodes)
+                {
+                    var data = extra[key.split('-')[1]];
+                    var node = graph._nodes[key];
+                    node.shape = 'erdEntity';
+                    node.labelText = data.title;
+                    node.entityData = data;
+                }
+            }
+            else if (diagramtype == 'requirements')
+            {
+                for (var key in graph._nodes)
+                {
+                    var node = graph._nodes[key];
+                    node.shape = extra.elements[key]? 'element' : 'requirement';
+                    node.data = extra.elements[key] || extra.requirements[key];
+                }
+            }
+
+            convertGraph(graph, null, mxGraph);
+        }
 
         var codec = new mxCodec();
         var node = codec.encode(mxGraph.getModel());
@@ -277,8 +969,11 @@ mxMermaidToDrawio = function(graph, diagramtype)
             mxMermaidToDrawio.listeners[i](modelString);
         }
 
-        // Reset listeners
-        mxMermaidToDrawio.listeners = [];
+        if (urlParams['mermaidToDrawioTest'] != '1')
+        {
+            // Reset listeners
+            mxMermaidToDrawio.listeners = [];
+        }
     }
 };
 
