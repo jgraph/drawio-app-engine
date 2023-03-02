@@ -444,7 +444,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             style.push('strokeWidth=3');
         }
 
-        return style.join(';');
+        return style.join(';') + ';';
     };
 
     function addEdge(edge, edgeInfo, nodesMap, parent, mxGraph)
@@ -481,11 +481,33 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             edgeInfo.points = null;
         }
 
-        for (var i = 0; edgeInfo.points && i < edgeInfo.points.length; i++)
+        if (edgeInfo.points && edgeInfo.points.length >= 2)
         {
-            var pt = edgeInfo.points[i];
-            e.geometry.points.push(new mxPoint(pt.x, pt.y));
+            var ps = edgeInfo.points.shift();
+            var pe = edgeInfo.points.pop();
+            var srcGeo = source.geometry, trgGeo = target.geometry;
+            
+            var exitX = (ps.x - srcGeo.x) / srcGeo.width;
+            var exitY = (ps.y - srcGeo.y) / srcGeo.height;
+            var entryX = (pe.x - trgGeo.x) / trgGeo.width;
+            var entryY = (pe.y - trgGeo.y) / trgGeo.height;
+
+            e.style += 'exitX=' + exitX + ';exitY=' + exitY + ';entryX=' + entryX + ';entryY=' + entryY + ';';
+
+            var lastP = ps;
+
+            for (var i = 0; i < edgeInfo.points.length; i++)
+            {
+                var pt = edgeInfo.points[i];
+                var nextP = edgeInfo.points[i + 1] || pe;
+                // Skip points that are on the same line
+                if ((lastP.x == pt.x || lastP.y == pt.y) &&
+                    nextP != null && (nextP.x == pt.x || nextP.y == pt.y)) continue;
+                lastP = pt;
+                e.geometry.points.push(new mxPoint(pt.x, pt.y));
+            }
         }
+
         return e;
     };
 
