@@ -15,8 +15,6 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
 
     var IsStateDiagram = diagramtype == 'statediagram';
 
-    console.log('mermaidToDrawio', graph, diagramtype, extra);
-
     try
     {
         return convertDiagram(graph);
@@ -57,9 +55,16 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             (type ? '<' + type + '>' : '');
     }
 
-    function simpleShape(style, node, parent, mxGraph)
+    function insertVertex(drawGraph, parent, id, value, x, y, width, height, style, relative)
     {
-        return mxGraph.insertVertex(parent , null, formatLabel(node.labelText), node.x, node.y, node.width, node.height, style);
+        return drawGraph.insertVertex(parent, id, value, Math.round(x), Math.round(y),
+            Math.round(width), Math.round(height), style, relative);
+    }
+
+    function simpleShape(style, node, parent, drawGraph)
+    {
+        return insertVertex(drawGraph, parent , null, formatLabel(node.labelText),
+            node.x, node.y, node.width, node.height, style);
     }
 
     function fixNodePos(node)
@@ -69,7 +74,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
     }
 
     // TODO Add styles if needed
-    function addNode(node, parent, mxGraph, noPosFix)
+    function addNode(node, parent, drawGraph, noPosFix)
     {
         var v;
         
@@ -101,89 +106,89 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 var rowCount = 1 + (annotations.length / 2) + Math.max(members.length, 0.5) + Math.max(methods.length, 0.5);
                 var rowHeight = (node.height - 8) / rowCount; // 8 is separator line height
                 
-                v = mxGraph.insertVertex(parent, null, annotationsStr + formatLabel(node.labelText, node.type), node.x, node.y, node.width, node.height, 'swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=' + (rowHeight * (1 + annotations.length / 2)) + ';horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;');
+                v = insertVertex(drawGraph, parent, null, annotationsStr + formatLabel(node.labelText, node.type), node.x, node.y, node.width, node.height, 'swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=' + (rowHeight * (1 + annotations.length / 2)) + ';horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;');
                 var y = rowHeight + (members.length == 0? rowHeight / 2 : 0);
 
                 for (var i = 0; i < members.length; i++)
                 {
-                    mxGraph.insertVertex(v, null, formatLabel(members[i]), 0, y, node.width, rowHeight, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;');
+                    insertVertex(drawGraph, v, null, formatLabel(members[i]), 0, y, node.width, rowHeight, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;');
                     y += rowHeight;
                 }
 
-                mxGraph.insertVertex(v, null, null, 0, y, node.width, methods.length == 0? rowHeight / 2 : 8, 'line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;');
+                insertVertex(drawGraph, v, null, null, 0, y, node.width, methods.length == 0? rowHeight / 2 : 8, 'line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;');
                 y += 8;
 
                 for (var i = 0; i < methods.length; i++)
                 {
-                    mxGraph.insertVertex(v, null, formatLabel(methods[i]), 0, y, node.width, rowHeight, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;');
+                    insertVertex(drawGraph, v, null, formatLabel(methods[i]), 0, y, node.width, rowHeight, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;');
                     y += rowHeight;
                 }
             break;
             case 'note':
-                v = simpleShape('align=left;spacingLeft=4;', node, parent, mxGraph);
+                v = simpleShape('align=left;spacingLeft=4;', node, parent, drawGraph);
             break;
             case 'rect':
                 v = simpleShape((node.type == 'round' || IsStateDiagram ? 'rounded=1;absoluteArcSize=1;arcSize=14;' : '') + 
                         'whiteSpace=wrap;strokeWidth=2;' + 
-                        (node.type == 'group'? 'verticalAlign=top;' : ''), node, parent, mxGraph);
+                        (node.type == 'group'? 'verticalAlign=top;' : ''), node, parent, drawGraph);
             break;
             case 'question':
             case 'choice':
                 if (node.shape == 'choice') node.labelText = '';
-                v = simpleShape('rhombus;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('rhombus;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'stadium':
-                v = simpleShape('rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=2;', node, parent, mxGraph);
+                v = simpleShape('rounded=1;whiteSpace=wrap;arcSize=50;strokeWidth=2;', node, parent, drawGraph);
             break;
             case 'subroutine':
-                v = simpleShape('strokeWidth=2;shape=process;whiteSpace=wrap;size=0.04;', node, parent, mxGraph);
+                v = simpleShape('strokeWidth=2;shape=process;whiteSpace=wrap;size=0.04;', node, parent, drawGraph);
             break;
             case 'cylinder':
-                v = simpleShape('shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=10;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'circle':
-                v = simpleShape('ellipse;aspect=fixed;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('ellipse;aspect=fixed;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'rect_left_inv_arrow':
-                v = simpleShape('shape=mxgraph.arrows2.arrow;dy=0;dx=0;notch=20;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('shape=mxgraph.arrows2.arrow;dy=0;dx=0;notch=20;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'trapezoid':
-                v = simpleShape('shape=trapezoid;perimeter=trapezoidPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('shape=trapezoid;perimeter=trapezoidPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'inv_trapezoid':
-                v = simpleShape('shape=trapezoid;perimeter=trapezoidPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;flipV=1;', node, parent, mxGraph);
+                v = simpleShape('shape=trapezoid;perimeter=trapezoidPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;flipV=1;', node, parent, drawGraph);
             break;
             case 'lean_right':
-                v = simpleShape('shape=parallelogram;perimeter=parallelogramPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('shape=parallelogram;perimeter=parallelogramPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'lean_left':
-                v = simpleShape('shape=parallelogram;perimeter=parallelogramPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;flipH=1;', node, parent, mxGraph);
+                v = simpleShape('shape=parallelogram;perimeter=parallelogramPerimeter;fixedSize=1;strokeWidth=2;whiteSpace=wrap;flipH=1;', node, parent, drawGraph);
             break;
             case 'doublecircle':
-                v = simpleShape('ellipse;shape=doubleEllipse;aspect=fixed;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('ellipse;shape=doubleEllipse;aspect=fixed;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'hexagon':
-                v = simpleShape('shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, mxGraph);
+                v = simpleShape('shape=hexagon;perimeter=hexagonPerimeter2;fixedSize=1;strokeWidth=2;whiteSpace=wrap;', node, parent, drawGraph);
             break;
             case 'start':
                 node.labelText = '';
-                v = simpleShape('ellipse;fillColor=strokeColor;', node, parent, mxGraph);
+                v = simpleShape('ellipse;fillColor=strokeColor;', node, parent, drawGraph);
             break;
             case 'end':
                 node.labelText = '';
-                v = simpleShape('ellipse;shape=endState;fillColor=strokeColor;', node, parent, mxGraph);
+                v = simpleShape('ellipse;shape=endState;fillColor=strokeColor;', node, parent, drawGraph);
             break;
             case 'roundedWithTitle':
-                v = simpleShape('swimlane;fontStyle=1;align=center;verticalAlign=middle;startSize=25;container=0;collapsible=0;rounded=1;arcSize=14;dropTarget=0;', node, parent, mxGraph);
+                v = simpleShape('swimlane;fontStyle=1;align=center;verticalAlign=middle;startSize=25;container=0;collapsible=0;rounded=1;arcSize=14;dropTarget=0;', node, parent, drawGraph);
             break;
             case 'fork':
             case 'join':
                 node.labelText = '';
-                v = simpleShape('shape=line;strokeWidth=' + (node.height - 5) + ';', node, parent, mxGraph);
+                v = simpleShape('shape=line;strokeWidth=' + (node.height - 5) + ';', node, parent, drawGraph);
             break;
             case 'divider':
                 node.labelText = '';
-                v = simpleShape('fillColor=#F7F7F7;dashed=1;dashPattern=12 12;', node, parent, mxGraph);
+                v = simpleShape('fillColor=#F7F7F7;dashed=1;dashPattern=12 12;', node, parent, drawGraph);
             break;
             case 'lifeline':
             case 'actorLifeline':
@@ -191,27 +196,27 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 v = simpleShape('shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;container=1;dropTarget=0;collapsible=0;recursiveResize=0;' +
                     'outlineConnect=0;portConstraint=eastwest;newEdgeStyle={"edgeStyle":"elbowEdgeStyle","elbow":"vertical","curved":0,"rounded":0};' +
                     (node.type == 'actor' ? 'participant=umlActor;verticalAlign=bottom;labelPosition=center;verticalLabelPosition=top;align=center;' : '') + 
-                    'size=' + node.size + ';', node, parent, mxGraph);
+                    'size=' + node.size + ';', node, parent, drawGraph);
             break;
             case 'activation':
-                v = simpleShape('points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={"edgeStyle":"elbowEdgeStyle","elbow":"vertical","curved":0,"rounded":0}', node, parent, mxGraph);
+                v = simpleShape('points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={"edgeStyle":"elbowEdgeStyle","elbow":"vertical","curved":0,"rounded":0}', node, parent, drawGraph);
             break;
             case 'seqNote':
                 node.labelText = node.message;
-                v = simpleShape('fillColor=#ffff88;strokeColor=#9E916F;', node, parent, mxGraph);
+                v = simpleShape('fillColor=#ffff88;strokeColor=#9E916F;', node, parent, drawGraph);
             break;
             case 'loop':
                 node.labelText = node.type || '';
                 var typeWidth = node.type? node.type.length * 10 : 0;
-                v = simpleShape('shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=' + typeWidth, node, parent, mxGraph);
+                v = simpleShape('shape=umlFrame;dashed=1;pointerEvents=0;dropTarget=0;strokeColor=#B3B3B3;height=20;width=' + typeWidth, node, parent, drawGraph);
                 
-                mxGraph.insertVertex(v, null, formatLabel(node.title), typeWidth, 0, node.width - typeWidth, 20, 'text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;');
+                insertVertex(drawGraph, v, null, formatLabel(node.title), typeWidth, 0, node.width - typeWidth, 20, 'text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;');
                 
                 for (var i = 0; node.sections != null && i < node.sections.length; i++)
                 {
                     var section = node.sections[i];
                     var sectionTitle = node.sectionTitles[i];
-                    mxGraph.insertVertex(v, null, formatLabel(sectionTitle.message), 0, section.y - node.y, node.width, section.height, 'shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;');
+                    insertVertex(drawGraph, v, null, formatLabel(sectionTitle.message), 0, section.y - node.y, node.width, section.height, 'shape=line;dashed=1;whiteSpace=wrap;verticalAlign=top;labelPosition=center;verticalLabelPosition=middle;align=center;strokeColor=#B3B3B3;');
                 }
             break;
             case 'erdEntity':
@@ -229,24 +234,24 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                     commentColW = Math.max(commentColW, attributes[i].attributeComment? attributes[i].attributeComment.length * 6 : 0);
                 }
 
-                v = mxGraph.insertVertex(parent, null, formatLabel(node.labelText), node.x, node.y, Math.max(nameColW + typeColW + keyColW + commentColW, node.width), node.height, 'shape=table;startSize=' + (attributes.length == 0? node.height : 25) + 
+                v = insertVertex(drawGraph, parent, null, formatLabel(node.labelText), node.x, node.y, Math.max(nameColW + typeColW + keyColW + commentColW, node.width), node.height, 'shape=table;startSize=' + (attributes.length == 0? node.height : 25) + 
                                 ';container=1;collapsible=0;childLayout=tableLayout;fixedRows=1;rowLines=1;fontStyle=1;align=center;resizeLast=1;');
 
                 for (var i = 0; i < attributes.length; i++)
                 {
-                    var row = mxGraph.insertVertex(v, null, null, 0, y, node.width, rowHeight, 'shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;dropTarget=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;top=0;left=0;right=0;bottom=0;');
+                    var row = insertVertex(drawGraph, v, null, null, 0, y, node.width, rowHeight, 'shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;fillColor=none;collapsible=0;dropTarget=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;top=0;left=0;right=0;bottom=0;');
                     var cellStyle = 'shape=partialRectangle;connectable=0;fillColor=none;top=0;left=0;bottom=0;right=0;align=left;spacingLeft=2;overflow=hidden;fontSize=11;';
-                    mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeType), 0, 0, typeColW, rowHeight, cellStyle);
-                    mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeName), 0, 0, Math.max(nameColW, node.width - typeColW - keyColW - commentColW), rowHeight, cellStyle);
+                    insertVertex(drawGraph, row, null, formatLabel(attributes[i].attributeType), 0, 0, typeColW, rowHeight, cellStyle);
+                    insertVertex(drawGraph, row, null, formatLabel(attributes[i].attributeName), 0, 0, Math.max(nameColW, node.width - typeColW - keyColW - commentColW), rowHeight, cellStyle);
                     
                     if (keyColW > 0)
                     {
-                        mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeKeyType), 0, 0, keyColW, rowHeight, cellStyle);
+                        insertVertex(drawGraph, row, null, formatLabel(attributes[i].attributeKeyType), 0, 0, keyColW, rowHeight, cellStyle);
                     }
 
                     if (commentColW > 0)
                     {
-                        mxGraph.insertVertex(row, null, formatLabel(attributes[i].attributeComment), 0, 0, commentColW, rowHeight, cellStyle);
+                        insertVertex(drawGraph, row, null, formatLabel(attributes[i].attributeComment), 0, 0, commentColW, rowHeight, cellStyle);
                     }
 
                     y += rowHeight;
@@ -256,7 +261,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             case 'requirement':
                 var isElement = node.shape == 'element';
                 annotationsStr = '<<' + (isElement? 'Element' : node.data.type) + '>>\n';
-                v = mxGraph.insertVertex(parent, null, annotationsStr + formatLabel(node.data.name), node.x, node.y, node.width, node.height, 'swimlane;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=1;collapsible=0;marginBottom=0;');
+                v = insertVertex(drawGraph, parent, null, annotationsStr + formatLabel(node.data.name), node.x, node.y, node.width, node.height, 'swimlane;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=40;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=1;collapsible=0;marginBottom=0;');
 
                 var bodyTxt = '';
 
@@ -269,29 +274,29 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                     bodyTxt = 'Id: ' + node.data.id + '\n' + 'Text: ' + node.data.text + '\n' + 'Risk: ' + node.data.risk + '\n' + 'Verification: ' + node.data.verifyMethod;
                 }
 
-                mxGraph.insertVertex(v, null, formatLabel(bodyTxt), 0, 40, node.width, node.height - 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacing=6;overflow=hidden;rotatable=0;connectable=0;');
+                insertVertex(drawGraph, v, null, formatLabel(bodyTxt), 0, 40, node.width, node.height - 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacing=6;overflow=hidden;rotatable=0;connectable=0;');
             break;
             case 'rectCloud':
-                v = simpleShape('shape=mxgraph.basic.cloud_rect;strokeWidth=2;', node, parent, mxGraph);
+                v = simpleShape('shape=mxgraph.basic.cloud_rect;strokeWidth=2;', node, parent, drawGraph);
             break;
             case 'cloud':
-                v = simpleShape('ellipse;shape=cloud;strokeWidth=2;', node, parent, mxGraph);
+                v = simpleShape('ellipse;shape=cloud;strokeWidth=2;', node, parent, drawGraph);
             break;
             case 'roundedRect':
-                v = simpleShape('rounded=1;arcSize=40;strokeWidth=2', node, parent, mxGraph);
+                v = simpleShape('rounded=1;arcSize=40;strokeWidth=2', node, parent, drawGraph);
             break;
             case 'smilingFace':
-                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699734-icon-6-smiling-face-128.png;imageBackground=default;', node, parent, mxGraph);
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699734-icon-6-smiling-face-128.png;imageBackground=default;', node, parent, drawGraph);
             break;
             case 'sadFace':
-                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699741-icon-7-sad-face-128.png;imageBackground=default;', node, parent, mxGraph);
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699741-icon-7-sad-face-128.png;imageBackground=default;', node, parent, drawGraph);
             break;
             case 'neutralFace':
-                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699721-icon-5-neutral-face-128.png;imageBackground=default;', node, parent, mxGraph);
+                v = simpleShape('shape=image;imageAspect=0;aspect=fixed;image=https://cdn1.iconfinder.com/data/icons/hawcons/32/699721-icon-5-neutral-face-128.png;imageBackground=default;', node, parent, drawGraph);
             break;
             case 'gitBranch':
                 v = simpleShape('line;dashed=1;strokeWidth=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;spacingRight=35;spacingTop=0;spacing=0;backgroundOutline=0;html=1;' +
-                        (node.isHidden? 'strokeColor=none;' : 'labelBackgroundColor=' + node.color[1] + ';fontColor=' + node.color[0] + ';'), node, parent, mxGraph);
+                        (node.isHidden? 'strokeColor=none;' : 'labelBackgroundColor=' + node.color[1] + ';fontColor=' + node.color[0] + ';'), node, parent, drawGraph);
             break;
             case 'gitCommit':
                 var typeStyle = '';
@@ -316,18 +321,18 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 }
 
                 v = simpleShape('ellipse;verticalAlign=middle;labelPosition=left;verticalLabelPosition=middle;align=right;rotation=300;spacingRight=4;labelBackgroundColor=default;strokeWidth=5;' +
-                        typeStyle + ';', node, parent, mxGraph);
+                        typeStyle + ';', node, parent, drawGraph);
                         
                 switch (node.type)
                 {
                     case 1:
-                        mxGraph.insertVertex(v, null, '', 5, 5, node.width - 10, node.height - 10, 'shape=umlDestroy;strokeWidth=3;strokeColor=#efefef;');
+                        insertVertex(drawGraph, v, null, '', 5, 5, node.width - 10, node.height - 10, 'shape=umlDestroy;strokeWidth=3;strokeColor=#efefef;');
                     break;
                     case 2:
-                        mxGraph.insertVertex(v, null, '', 0, 0, node.width, node.height, 'strokeWidth=5;strokeColor=#1c1c1c;fillColor=#efefef;');
+                        insertVertex(drawGraph, v, null, '', 0, 0, node.width, node.height, 'strokeWidth=5;strokeColor=#1c1c1c;fillColor=#efefef;');
                     break;
                     case 4:
-                        mxGraph.insertVertex(v, null, '', 2, 2, node.width - 5, node.height - 5, 'shape=image;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/essential-pack/32/68-Cherry-128.png');
+                        insertVertex(drawGraph, v, null, '', 2, 2, node.width - 5, node.height - 5, 'shape=image;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/essential-pack/32/68-Cherry-128.png');
                     break;
                 }
 
@@ -335,7 +340,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 {
                     var tagW = node.tag.length * 6 + 20;
                     // Note that the tag is rotated 90 degrees and flipped vertically (so width and height are swapped)
-                    var t = mxGraph.insertVertex(v, null, formatLabel(node.tag), 0, -tagW / 2 - node.width / 2 - 5, node.height, tagW, 'shape=loopLimit;size=8;rotation=90;horizontal=0;flipV=1;fillColor=#efefef;strokeColor=#DEDEDE;');
+                    var t = insertVertex(drawGraph, v, null, formatLabel(node.tag), 0, -tagW / 2 - node.width / 2 - 5, node.height, tagW, 'shape=loopLimit;size=8;rotation=90;horizontal=0;flipV=1;fillColor=#efefef;strokeColor=#DEDEDE;');
                 }
             break;
         }
@@ -343,17 +348,17 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         //Links
         if (node.link)
         {
-            mxGraph.setAttributeForCell(v, 'link', node.link);
+            drawGraph.setAttributeForCell(v, 'link', node.link);
         }
 
         if (node.linkTarget)
         {
-            mxGraph.setAttributeForCell(v, 'linkTarget', node.linkTarget);
+            drawGraph.setAttributeForCell(v, 'linkTarget', node.linkTarget);
         }
 
         if (node.tooltip)
         {
-            mxGraph.setAttributeForCell(v, 'tooltip', node.tooltip);
+            drawGraph.setAttributeForCell(v, 'tooltip', node.tooltip);
         }
 
         return v;
@@ -447,7 +452,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         return style.join(';') + ';';
     };
 
-    function addEdge(edge, edgeInfo, nodesMap, parent, mxGraph)
+    function addEdge(edge, edgeInfo, nodesMap, parent, drawGraph)
     {
         var source = nodesMap[edgeInfo.fromCluster || edge.v];
         var target = nodesMap[edgeInfo.toCluster || edge.w];
@@ -459,17 +464,17 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 edgeInfo.relationship.roleA;
         }
 
-        var e = mxGraph.insertEdge(parent, null, formatLabel(lbl), source, target, getEdgeStyle(edgeInfo));
+        var e = drawGraph.insertEdge(parent, null, formatLabel(lbl), source, target, getEdgeStyle(edgeInfo));
 
         if (edgeInfo.startLabelRight)
         {
-            var subLbl = mxGraph.insertVertex(e, null, formatLabel(edgeInfo.startLabelRight), -1, 0, 0, 0, 'edgeLabel;resizable=0;align=left;verticalAlign=top;');
+            var subLbl = insertVertex(drawGraph, e, null, formatLabel(edgeInfo.startLabelRight), -1, 0, 0, 0, 'edgeLabel;resizable=0;align=left;verticalAlign=top;');
             subLbl.geometry.relative = true;
         }
 
         if (edgeInfo.endLabelLeft)
         {
-            var subLbl = mxGraph.insertVertex(e, null, formatLabel(edgeInfo.endLabelLeft), 0.5, 0, 0, 0, 'edgeLabel;resizable=0;align=right;verticalAlign=top;');
+            var subLbl = insertVertex(drawGraph, e, null, formatLabel(edgeInfo.endLabelLeft), 0.5, 0, 0, 0, 'edgeLabel;resizable=0;align=right;verticalAlign=top;');
             subLbl.geometry.relative = true;
         }
 
@@ -504,7 +509,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 if ((lastP.x == pt.x || lastP.y == pt.y) &&
                     nextP != null && (nextP.x == pt.x || nextP.y == pt.y)) continue;
                 lastP = pt;
-                e.geometry.points.push(new mxPoint(pt.x, pt.y));
+                e.geometry.points.push(new mxPoint(Math.round(pt.x), Math.round(pt.y)));
             }
         }
 
@@ -534,7 +539,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         return t;
     };
 
-    function addMessage(msg, nodesMap, mxGraph)
+    function addMessage(msg, nodesMap, drawGraph)
     {
         var edgeStyle = '';
 
@@ -569,24 +574,24 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         var source = findTerminal(msg, nodesMap, 'startx');
         var target = findTerminal(msg, nodesMap, 'stopx');
         var selfLoop = source == target;
-        var e = mxGraph.insertEdge(null, null, formatLabel(msg.message), source, target, 
+        var e = drawGraph.insertEdge(null, null, formatLabel(msg.message), source, target, 
                 (selfLoop? 'curved=1;' : 'verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;') +
                 edgeStyle);
 
         if (selfLoop)
         {
-            e.geometry.points = [new mxPoint(msg.startx + 50, msg.stopy - 30),
-                                new mxPoint(msg.startx + 50, msg.stopy)];
+            e.geometry.points = [new mxPoint(Math.round(msg.startx + 50), Math.round(msg.stopy - 30)),
+                                new mxPoint(Math.round(msg.startx + 50), Math.round(msg.stopy))];
         }
         else
         {
-            e.geometry.points = [new mxPoint(Math.min(msg.startx, msg.stopx) + msg.width / 2, msg.stopy)];
+            e.geometry.points = [new mxPoint(Math.round(Math.min(msg.startx, msg.stopx) + msg.width / 2), Math.round(msg.stopy))];
         }
 
         return e;
     };
     
-    function convertSequenceDiagram(graph, mxGraph)
+    function convertSequenceDiagram(graph, drawGraph)
     {
         var nodesMap = {}, actorWidth = 0;
 
@@ -600,7 +605,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             actor.size = actor.height;
             actor.height = graph.verticalPos;
             actor.y = 0; // TODO Confirm this is correct as y sometimes is huge for no reason
-            var v = addNode(actor, null, mxGraph, true);
+            var v = addNode(actor, null, drawGraph, true);
             nodesMap[actor.x + actor.width / 2] = v;
             actorWidth = Math.max(actorWidth, actor.width);
             nodesMap[actor.name] = v;
@@ -633,7 +638,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             activation.width = activation.stopx - activation.startx;
             activation.height = activation.stopy - msgYs[j - 1];
             activation.shape = 'activation';
-            var v = addNode(activation, actor, mxGraph, true);
+            var v = addNode(activation, actor, drawGraph, true);
 
             function addToNodesMap(key, v)
             {
@@ -658,12 +663,12 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             loop.width = loop.stopx - loop.startx;
             loop.height = loop.stopy - loop.starty;
             loop.shape = 'loop';
-            addNode(loop, null, mxGraph, true);
+            addNode(loop, null, drawGraph, true);
         }
 
         for (var i = 0; i < graph.messages.length; i++)
         {
-            addMessage(graph.messages[i], nodesMap, mxGraph);
+            addMessage(graph.messages[i], nodesMap, drawGraph);
         }
 
         for (var i = 0; i < graph.notes.length; i++)
@@ -672,7 +677,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             note.shape = 'seqNote';
             note.x = note.startx;
             note.y = note.starty;
-            addNode(note, null, mxGraph, true);
+            addNode(note, null, drawGraph, true);
         }
 
         for (var i = 0; i < graph.actors.length; i++)
@@ -694,7 +699,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         }
     };
 
-    function convertGraph(graph, parent, mxGraph)
+    function convertGraph(graph, parent, drawGraph)
     {
         var nodes = graph._nodes, nodesMap = {};
         var edges = graph._edgeObjs;
@@ -703,22 +708,22 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
 
         for (var id in nodes)
         {
-            nodesMap[id] = addNode(nodes[id], parent, mxGraph);
+            nodesMap[id] = addNode(nodes[id], parent, drawGraph);
 
             if (nodes[id].clusterNode)
             {
                 delete nodes[id].graph._nodes[id]; // The same node is added to subgraph also
-                convertGraph(nodes[id].graph, nodesMap[id], mxGraph);
+                convertGraph(nodes[id].graph, nodesMap[id], drawGraph);
             }
         }
 
         for (var id in edges)
         {
-            addEdge(edges[id], edgesInfo[id], nodesMap, parent, mxGraph);
+            addEdge(edges[id], edgesInfo[id], nodesMap, parent, drawGraph);
         }
     };
 
-    function convertGitGraphDiagram(graph, mxGraph)
+    function convertGitGraphDiagram(graph, drawGraph)
     {
         var branchMap = {}, maxX = 0, colorIndex = 0;
 
@@ -739,7 +744,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             branch.isHidden = !graph.gitGraphConfig.showBranches;
             var color = grayscaleColors[colorIndex++ % grayscaleColors.length];
             branch.color = color;
-            var n = addNode(branch, null, mxGraph, true);
+            var n = addNode(branch, null, drawGraph, true);
             n.value = graph.gitGraphConfig.showBranches? '<p style="line-height: 50%;">&nbsp;&nbsp;' + mxUtils.htmlEntities(n.value) + '&nbsp;&nbsp;</p>' : '';
             branchMap[branch.pos] = { node: n, color: color };
         }
@@ -759,7 +764,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             commit.labelText = graph.gitGraphConfig.showCommitLabel? name : '';
             commit.color = branch.color;
             commit.type = commit.customType || commit.type;
-            commitMap[name] = addNode(commit, branch.node, mxGraph);
+            commitMap[name] = addNode(commit, branch.node, drawGraph);
             branch.commitList = branch.commitList || [];
             branch.commitList.push(commit.x);
 
@@ -776,7 +781,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         {
             var edge = edges[i];
             var src = commitMap[edge.source], trg = commitMap[edge.target];
-            var e = mxGraph.insertEdge(null, null, null, src, trg, 'rounded=1;endArrow=none;endFill=0;strokeWidth=8;');
+            var e = drawGraph.insertEdge(null, null, null, src, trg, 'rounded=1;endArrow=none;endFill=0;strokeWidth=8;');
 
             var srcY =  src.parent.geometry.y, trgY = trg.parent.geometry.y;
             var overlapClr = false;
@@ -798,13 +803,15 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 if (count > 0)
                 {
                     var midY = (srcY + trgY) / 2;
-                    e.geometry.points = [new mxPoint(src.geometry.x + src.geometry.width / 2, midY), new mxPoint(trg.geometry.x + trg.geometry.width / 2, midY)];
+                    e.geometry.points = [new mxPoint(Math.round(src.geometry.x + src.geometry.width / 2), Math.round(midY)),
+                        new mxPoint(Math.round(trg.geometry.x + trg.geometry.width / 2), Math.round(midY))];
                     overlapClr = true;
                 }
                 else
                 {
                     var maxY = Math.max(srcY, trgY);
-                    e.geometry.points = [new mxPoint(srcY == maxY? trg.geometry.x + trg.geometry.width / 2 : src.geometry.x + src.geometry.width / 2, maxY)];
+                    e.geometry.points = [new mxPoint(srcY == maxY? Math.round(trg.geometry.x + trg.geometry.width / 2) :
+                        Math.round(src.geometry.x + src.geometry.width / 2), Math.round(maxY))];
                 }
             }
 
@@ -819,7 +826,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         }
     };
 
-    function convertJourneyDiagram(graph, mxGraph)
+    function convertJourneyDiagram(graph, drawGraph)
     {
         var tasks = graph.tasks, lastSection = null;
         var minX = Number.MAX_SAFE_INTEGER, maxX = 0, minY = Number.MAX_SAFE_INTEGER;
@@ -835,15 +842,15 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             minX = Math.min(minX, task.x);
             maxX = Math.max(maxX, task.x + task.width);
             minY = Math.min(minY, task.y + task.size);
-            var v = addNode(task, null, mxGraph, true);
+            var v = addNode(task, null, drawGraph, true);
             var face = {shape: task.score < 3? 'sadFace' : (task.score > 3? 'smilingFace' : 'neutralFace'), x: task.width / 2 - 15, y: 270 - task.score * 25, width: 30, height: 30};
-            addNode(face, v, mxGraph, true);
+            addNode(face, v, drawGraph, true);
 
             var index = 0;
             // actors
             for (var key in task.actors)
             {
-                mxGraph.insertVertex(v, null, null, 5 + index++ * 8, -6, 12, 12, 'ellipse;aspect=fixed;fillColor=' + task.actors[key].color);
+                insertVertex(drawGraph, v, null, null, 5 + index++ * 8, -6, 12, 12, 'ellipse;aspect=fixed;fillColor=' + task.actors[key].color);
             }
 
             if (lastSection != task.section)
@@ -853,29 +860,29 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 task.shape = 'rect';
                 task.height = task.size;
                 task.y -= task.height + 10;
-                v = addNode(task, null, mxGraph, true);
+                v = addNode(task, null, drawGraph, true);
             }
         }
 
-        var e = mxGraph.insertEdge(null, null, null, null, null, 'endArrow=block;strokeWidth=3;endFill=1;');
-        e.geometry.setTerminalPoint(new mxPoint(minX, minY + 50), true);
-        e.geometry.setTerminalPoint(new mxPoint(maxX + 50, minY + 50), false);
+        var e = drawGraph.insertEdge(null, null, null, null, null, 'endArrow=block;strokeWidth=3;endFill=1;');
+        e.geometry.setTerminalPoint(new mxPoint(Math.round(minX), Math.round(minY + 50)), true);
+        e.geometry.setTerminalPoint(new mxPoint(Math.round(maxX + 50), Math.round(minY + 50)), false);
         e.geometry.relative = true;
 
         if (graph.title)
         {
-            mxGraph.insertVertex(null, null, formatLabel(graph.title), minX, 0, graph.title.length * 12, 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=20;fontStyle=1');
+            insertVertex(drawGraph, null, null, formatLabel(graph.title), minX, 0, graph.title.length * 12, 40, 'text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=20;fontStyle=1');
         }
 
         // Legend
         for (var key in graph.actors)
         {
             var actor = graph.actors[key];
-            mxGraph.insertVertex(null, null, key, 10, 70 + actor.position * 20, 12, 12, 'ellipse;aspect=fixed;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;spacingLeft=10;fillColor=' + actor.color);
+            insertVertex(drawGraph, null, null, key, 10, 70 + actor.position * 20, 12, 12, 'ellipse;aspect=fixed;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;spacingLeft=10;fillColor=' + actor.color);
         }
     };
 
-    function convertMindmapDiagram(graph, mxGraph)
+    function convertMindmapDiagram(graph, drawGraph)
     {
         var nodes = graph._private.elements;
         var nodesMap = {}, edgesMap = {};
@@ -911,7 +918,7 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                     node.type = 'round';
             }
             
-            nodesMap[node.id] = addNode(node, null, mxGraph);
+            nodesMap[node.id] = addNode(node, null, drawGraph);
 
             var edges = nodes[i]._private.edges;
 
@@ -925,29 +932,29 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
         for (var id in edgesMap)
         {
             var edgeInfo = edgesMap[id];
-            mxGraph.insertEdge(null, null, null, nodesMap[edgeInfo.source], nodesMap[edgeInfo.target], 'endArrow=none');
+            drawGraph.insertEdge(null, null, null, nodesMap[edgeInfo.source], nodesMap[edgeInfo.target], 'endArrow=none');
         }
     };
 
     function convertDiagram(graph)
     {
-        var mxGraph = createMxGraph();
+        var drawGraph = createMxGraph();
 
         if (diagramtype == 'gitgraph')
         {
-            convertGitGraphDiagram(graph, mxGraph);
+            convertGitGraphDiagram(graph, drawGraph);
         }
         else if (diagramtype == 'journey')
         {
-            convertJourneyDiagram(graph, mxGraph);
+            convertJourneyDiagram(graph, drawGraph);
         }
         else if (diagramtype == 'Mindmap')
         {
-            convertMindmapDiagram(graph, mxGraph);
+            convertMindmapDiagram(graph, drawGraph);
         }
         else if (diagramtype == 'sequenceDiagram')
         {
-            convertSequenceDiagram(graph, mxGraph);
+            convertSequenceDiagram(graph, drawGraph);
         }
         else
         {
@@ -978,13 +985,12 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                 }
             }
 
-            convertGraph(graph, null, mxGraph);
+            convertGraph(graph, null, drawGraph);
         }
 
         var codec = new mxCodec();
-        var node = codec.encode(mxGraph.getModel());
+        var node = codec.encode(drawGraph.getModel());
         var modelString = mxUtils.getXml(node);
-        console.log(modelString);
 
         for (var i = 0; i < mxMermaidToDrawio.listeners.length; i++)
         {
