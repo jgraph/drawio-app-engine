@@ -518,14 +518,20 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
 
     function findTerminal(msg, nodesMap, coord)
     {
-        var t = nodesMap[msg[coord]];
-        
-        if (t == null)
-        {
-            // Find which activation is the target
-            var arr = nodesMap[msg[coord] + 'a'];
+        var msgX = msg[coord];
 
-            for (var i = 0; arr != null && i < arr.length; i++)
+        // Find closest activation
+        for (var key in nodesMap)
+        {
+            if (key.indexOf('a') == -1) continue;
+
+            var x = parseInt(key.substring(0, key.length - 1));
+
+            if (Math.abs(x - msgX) > 20) continue;
+
+            var arr = nodesMap[key];
+
+            for (var i = 0; i < arr.length; i++)
             {
                 var geo = arr[i].geometry;
 
@@ -536,7 +542,20 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
             }
         }
 
-        return t;
+        // Find closest actor
+        for (var key in nodesMap)
+        {
+            if (key.indexOf('a') > -1) continue;
+
+            var x = parseInt(key);
+
+            if (Math.abs(x - msgX) <= 20)
+            {
+                return nodesMap[key];
+            }
+        }
+
+        return null; // No terminal found
     };
 
     function addMessage(msg, nodesMap, drawGraph)
