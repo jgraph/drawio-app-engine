@@ -937,8 +937,11 @@ mxMermaidToDrawio = function(graph, diagramtype, extra)
                     node.type = 'round';
             }
             
-            nodesMap[node.id] = addNode(node, null, drawGraph);
-
+            if (!isNaN(node.x) && !isNaN(node.y))
+            {
+                nodesMap[node.id] = addNode(node, null, drawGraph);
+            }
+            
             var edges = nodes[i]._private.edges;
 
             for (var j = 0; j < edges.length; j++)
