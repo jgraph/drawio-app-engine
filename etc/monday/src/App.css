@@ -1,0 +1,28 @@
+body {
+  margin: 0;
+  font-family: "Roboto", sans-serif;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.App {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* There something wrong with tabs pading */
+.tab--wrapper .tab-inner {
+  padding: 0 !important;
+}
+
+ul {
+  list-style: none;
+  padding-inline-start: 0;
+}
