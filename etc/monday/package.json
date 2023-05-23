@@ -3,13 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "npm run stop && concurrently \"npm run server\" \"npm run expose\"",
-    "build": "PUBLIC_URL='.' BUILD_PATH='../../src/main/webapp/connect/monday' react-scripts build",
-    "expose": "mtunnel -p 8301",
-    "server": "react-scripts start",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "stop": "kill-port 8301 && kill-port 4049 && kill-port 4040"
+    "start": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
   },
   "dependencies": {
     "monday-sdk-js": "^0.3.2",
@@ -32,12 +28,15 @@
   },
   "devDependencies": {
     "@mondaydotcomorg/tunnel": "^0.4.2",
+    "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^8.0.1",
     "cross-port-killer": "^1.2.1",
     "eslint-config-react-app": "^7.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "^5.0.1",
-    "sass": "^1.62.1"
+    "sass": "^1.62.1",
+    "vite": "^4.3.7",
+    "vite-plugin-svgr": "^3.2.0",
+    "vite-tsconfig-paths": "^4.2.0"
   }
 }
