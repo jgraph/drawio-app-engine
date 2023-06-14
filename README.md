@@ -1,3 +1,8 @@
+PROJECT DEPRECATED
+------------------
+
+Google have deprecated GAE standard bundled service and it's end of life at the start of 2024. We're moving off Google Cloud due to them deprecating everything we use, so this project won't be updated to the newer system.
+
 About
 -----
 draw.io, this project, is a configurable diagramming/whiteboarding visualization application. draw.io is jointly owned and developed by JGraph Ltd and draw.io AG.
